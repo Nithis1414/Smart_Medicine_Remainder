@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - MedRemind</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">💊</div>
+                <div><h2>MedRemind</h2><p>Healthcare Assistant</p></div>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-section">Main</div>
+                <a href="{{ url_for('dashboard') }}"><span class="nav-icon">📊</span> Dashboard</a>
+                <div class="nav-section">Tools</div>
+                <a href="{{ url_for('chatbot') }}"><span class="nav-icon">🤖</span> AI Chatbot</a>
+                <a href="{{ url_for('pharmacy') }}"><span class="nav-icon">🗺️</span> Pharmacy Finder</a>
+                <div class="nav-section">Account</div>
+                <a href="{{ url_for('profile') }}" class="active"><span class="nav-icon">👤</span> Profile</a>
+                <a href="{{ url_for('logout') }}"><span class="nav-icon">🚪</span> Logout</a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="avatar">{{ session.get('full_name', 'U')[0]|upper }}</div>
+                    <div><div class="user-name">{{ session.get('full_name', 'User') }}</div><div class="user-role">Patient</div></div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="topbar">
+                <div class="flex items-center gap-2">
+                    <button class="mobile-toggle" onclick="toggleSidebar()">☰</button>
+                    <h1>👤 Profile Settings</h1>
+                </div>
+                <div class="topbar-actions">
+                    <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">🌙</button>
+                </div>
+            </div>
+
+            <div class="page-content">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+                {% endif %}
+                {% endwith %}
+
+                <div class="card profile-card">
+                    <div class="card-header"><h2>Edit Profile</h2></div>
+                    <div class="card-body">
+                        <div class="profile-avatar">{{ (user.full_name or user.username)[0]|upper }}</div>
+                        <form method="POST" action="{{ url_for('profile') }}">
+                            <div class="form-group">
+                                <label for="full_name">Full Name</label>
+                                <input type="text" id="full_name" name="full_name" value="{{ user.full_name or '' }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="email">Email</label>
+                                <input type="email" id="email" name="email" value="{{ user.email }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="phone">Phone</label>
+                                <input type="tel" id="phone" name="phone" value="{{ user.phone or '' }}">
+                            </div>
+                            <hr style="border-color:var(--border);margin:1.5rem 0">
+                            <h3 style="font-size:1rem;margin-bottom:1rem">Change Password</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="current_password">Current Password</label>
+                                    <input type="password" id="current_password" name="current_password" placeholder="Leave blank to keep">
+                                </div>
+                                <div class="form-group">
+                                    <label for="new_password">New Password</label>
+                                    <input type="password" id="new_password" name="new_password" placeholder="Min 6 characters">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary" style="margin-top:1rem">💾 Save Changes</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

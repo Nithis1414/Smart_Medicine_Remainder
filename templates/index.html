@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="Smart Medicine Reminder System - Your personal healthcare assistant with medicine reminders, prescription management, AI chatbot, and pharmacy locator.">
+    <title>MedRemind - Smart Medicine Reminder System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+    <div class="landing">
+        <!-- Navigation -->
+        <nav class="landing-nav">
+            <div class="logo">💊 Med<span>Remind</span></div>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="{{ url_for('login') }}">Login</a>
+                <a href="{{ url_for('register') }}" class="btn-outline">Get Started</a>
+            </div>
+        </nav>
+
+        <!-- Hero Section -->
+        <section class="hero">
+            <div class="hero-content">
+                <h1>Your Smart Medicine Reminder Assistant</h1>
+                <p>Never miss a dose again. MedRemind helps you manage medications, track prescriptions, find nearby
+                    pharmacies, and get AI-powered health guidance — all in one place.</p>
+                <div class="hero-buttons">
+                    <a href="{{ url_for('register') }}" class="btn btn-primary"
+                        style="background:#fff;color:var(--primary);font-size:1rem;padding:1rem 2rem">
+                        🚀 Get Started Free
+                    </a>
+                    <a href="#features" class="btn btn-secondary"
+                        style="border-color:rgba(255, 255, 255, 0.633);color:#1b0c0c;padding:1rem 2rem">
+                        Learn More →
+                    </a>
+                </div>
+            </div>
+            <div class="hero-image">
+                <div class="hero-icon">💊</div>
+            </div>
+        </section>
+
+        <!-- Features -->
+        <section class="features" id="features">
+            <div class="feature-card">
+                <div class="icon">⏰</div>
+                <h3>Smart Reminders</h3>
+                <p>Set personalized medicine reminders with voice notifications so you never miss a dose.</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">📋</div>
+                <h3>Prescription Tracking</h3>
+                <p>Upload and manage your prescriptions digitally for easy access anytime.</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">🤖</div>
+                <h3>AI Health Assistant</h3>
+                <p>Get instant answers to health questions from our AI-powered chatbot.</p>
+            </div>
+            <div class="feature-card">
+                <div class="icon">🗺️</div>
+                <h3>Pharmacy Finder</h3>
+                <p>Locate nearby pharmacies and medical stores with directions on the map.</p>
+            </div>
+        </section>
+    </div>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+
+</html>

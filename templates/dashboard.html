@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - MedRemind</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">💊</div>
+                <div>
+                    <h2>MedRemind</h2>
+                    <p>Healthcare Assistant</p>
+                </div>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-section">Main</div>
+                <a href="{{ url_for('dashboard') }}" class="active"><span class="nav-icon">📊</span> Dashboard</a>
+                <div class="nav-section">Manage</div>
+                <a href="#medicines" onclick="document.getElementById('medicinesSection').scrollIntoView({behavior:'smooth'})"><span class="nav-icon">💊</span> Medicines</a>
+                <a href="#prescriptions" onclick="document.getElementById('prescriptionsSection').scrollIntoView({behavior:'smooth'})"><span class="nav-icon">📋</span> Prescriptions</a>
+                <div class="nav-section">Tools</div>
+                <a href="{{ url_for('chatbot') }}"><span class="nav-icon">🤖</span> AI Chatbot</a>
+                <a href="{{ url_for('pharmacy') }}"><span class="nav-icon">🗺️</span> Pharmacy Finder</a>
+                <div class="nav-section">Account</div>
+                <a href="{{ url_for('profile') }}"><span class="nav-icon">👤</span> Profile</a>
+                <a href="{{ url_for('logout') }}"><span class="nav-icon">🚪</span> Logout</a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="avatar">{{ session.get('full_name', 'U')[0]|upper }}</div>
+                    <div>
+                        <div class="user-name">{{ session.get('full_name', 'User') }}</div>
+                        <div class="user-role">Patient</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="topbar">
+                <div class="flex items-center gap-2">
+                    <button class="mobile-toggle" onclick="toggleSidebar()">☰</button>
+                    <h1>Dashboard</h1>
+                </div>
+                <div class="topbar-actions">
+                    <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">🌙</button>
+                </div>
+            </div>
+
+            <div class="page-content">
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+                {% endif %}
+                {% endwith %}
+
+                <!-- Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">💊</div>
+                        <div class="stat-value">{{ stats.total_medicines }}</div>
+                        <div class="stat-label">Total Medicines</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-value">{{ stats.active_medicines }}</div>
+                        <div class="stat-label">Active Reminders</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📋</div>
+                        <div class="stat-value">{{ stats.total_prescriptions }}</div>
+                        <div class="stat-label">Prescriptions</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🏆</div>
+                        <div class="stat-value">{{ stats.completed_reminders }}</div>
+                        <div class="stat-label">Doses Taken</div>
+                    </div>
+                </div>
+
+                <!-- Today's Medicines -->
+                <div class="card mb-2" id="medicinesSection">
+                    <div class="card-header">
+                        <h2>📅 Today's Medicines</h2>
+                        <button class="btn btn-primary btn-sm" onclick="openAddMedicineModal()">+ Add Medicine</button>
+                    </div>
+                    <div class="card-body" style="padding:0">
+                        {% if today_medicines %}
+                        {% for med in today_medicines %}
+                        <div class="medicine-item">
+                            <div class="med-info">
+                                <div class="med-icon">💊</div>
+                                <div>
+                                    <div class="med-name">{{ med.name }}</div>
+                                    <div class="med-detail">{{ med.dosage }} · {{ med.frequency }}</div>
+                                </div>
+                            </div>
+                            <div class="med-time">
+                                <div class="time">{{ med.reminder_time }}</div>
+                                <div class="freq">{{ med.frequency }}</div>
+                            </div>
+                            <div class="med-actions">
+                                <button class="btn btn-success btn-sm" onclick="takeMedicine({{ med.id }})" title="Take">✅ Take</button>
+                                <button class="btn btn-sm btn-secondary" onclick="skipMedicine({{ med.id }})" title="Skip">⏭️</button>
+                                <button class="btn btn-sm btn-secondary" onclick="openEditMedicineModal({{ med.id }})" title="Edit">✏️</button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteMedicine({{ med.id }})" title="Delete">🗑️</button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <div style="padding:2rem;text-align:center;color:var(--text-light)">
+                            <p style="font-size:2rem;margin-bottom:.5rem">🎉</p>
+                            <p>No medicines scheduled for today.</p>
+                            <button class="btn btn-primary btn-sm mt-2" onclick="openAddMedicineModal()">+ Add Your First Medicine</button>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- All Medicines -->
+                <div class="card mb-2">
+                    <div class="card-header">
+                        <h2>💊 All Medicines</h2>
+                        <div class="search-bar" style="margin:0;width:250px">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" placeholder="Search medicines..." oninput="filterMedicines(this.value)" style="padding-left:2.5rem">
+                        </div>
+                    </div>
+                    <div class="card-body" style="padding:0">
+                        {% if medicines %}
+                        {% for med in medicines %}
+                        <div class="medicine-item">
+                            <div class="med-info">
+                                <div class="med-icon">💊</div>
+                                <div>
+                                    <div class="med-name">{{ med.name }}</div>
+                                    <div class="med-detail">{{ med.dosage }} · {{ med.frequency }} · From {{ med.start_date }}{% if med.end_date %} to {{ med.end_date }}{% endif %}</div>
+                                </div>
+                            </div>
+                            <div class="med-time">
+                                <div class="time">{{ med.reminder_time }}</div>
+                                <div class="freq">Taken {{ med.completed_count }} times</div>
+                            </div>
+                            <div class="med-actions">
+                                <button class="btn btn-sm btn-secondary" onclick="openEditMedicineModal({{ med.id }})">✏️</button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteMedicine({{ med.id }})">🗑️</button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <div style="padding:2rem;text-align:center;color:var(--text-light)">
+                            <p>No medicines added yet.</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Prescriptions -->
+                <div class="card" id="prescriptionsSection">
+                    <div class="card-header">
+                        <h2>📋 Recent Prescriptions</h2>
+                        <button class="btn btn-primary btn-sm" onclick="openPrescriptionModal()">+ Upload</button>
+                    </div>
+                    <div class="card-body">
+                        {% if prescriptions %}
+                        <div class="prescription-grid">
+                            {% for presc in prescriptions %}
+                            <div class="prescription-card">
+                                <div class="presc-preview">
+                                    {% if presc.original_name.endswith('.pdf') %}📄{% else %}🖼️{% endif %}
+                                </div>
+                                <div class="presc-info">
+                                    <div class="presc-name">{{ presc.original_name }}</div>
+                                    <div class="presc-meta">{{ presc.description or 'No description' }} · {{ presc.upload_date }}</div>
+                                    {% if presc.doctor_name %}<div class="presc-meta">Dr. {{ presc.doctor_name }}</div>{% endif %}
+                                </div>
+                                <div class="presc-actions">
+                                    <a href="{{ url_for('serve_upload', filename=presc.filename) }}" target="_blank" class="btn btn-sm btn-secondary">👁️ View</a>
+                                    <button class="btn btn-danger btn-sm" onclick="deletePrescription({{ presc.id }})">🗑️</button>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div style="text-align:center;color:var(--text-light);padding:1rem">
+                            <p>No prescriptions uploaded yet.</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add/Edit Medicine Modal -->
+    <div class="modal-overlay" id="medicineModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="medicineModalTitle">Add Medicine</h2>
+                <button class="modal-close" onclick="closeModal('medicineModal')">✕</button>
+            </div>
+            <form class="modal-body" id="medicineForm" onsubmit="saveMedicine(event)">
+                <input type="hidden" id="medicineId">
+                <div class="form-group">
+                    <label for="medName">Medicine Name *</label>
+                    <input type="text" id="medName" placeholder="e.g. Paracetamol" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="medDosage">Dosage *</label>
+                        <input type="text" id="medDosage" placeholder="e.g. 500mg" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="medFrequency">Frequency *</label>
+                        <select id="medFrequency" required>
+                            <option value="">Select</option>
+                            <option value="Once daily">Once daily</option>
+                            <option value="Twice daily">Twice daily</option>
+                            <option value="Three times daily">Three times daily</option>
+                            <option value="Every 4 hours">Every 4 hours</option>
+                            <option value="Every 6 hours">Every 6 hours</option>
+                            <option value="Every 8 hours">Every 8 hours</option>
+                            <option value="Weekly">Weekly</option>
+                            <option value="As needed">As needed</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="medTime">Reminder Time *</label>
+                    <input type="time" id="medTime" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="medStartDate">Start Date *</label>
+                        <input type="date" id="medStartDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="medEndDate">End Date</label>
+                        <input type="date" id="medEndDate">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="medNotes">Notes</label>
+                    <textarea id="medNotes" rows="2" placeholder="Any additional notes..."></textarea>
+                </div>
+                <div class="modal-footer" style="padding:0;border:none;margin-top:1rem">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('medicineModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">💾 Save Medicine</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Upload Prescription Modal -->
+    <div class="modal-overlay" id="prescriptionModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Upload Prescription</h2>
+                <button class="modal-close" onclick="closeModal('prescriptionModal')">✕</button>
+            </div>
+            <form class="modal-body" id="prescriptionForm" onsubmit="uploadPrescription(event)" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="prescFile">Select File (Image or PDF) *</label>
+                    <input type="file" id="prescFile" name="file" accept=".png,.jpg,.jpeg,.gif,.pdf" required>
+                </div>
+                <div class="form-group">
+                    <label for="prescDesc">Description</label>
+                    <input type="text" id="prescDesc" name="description" placeholder="e.g. Blood test report">
+                </div>
+                <div class="form-group">
+                    <label for="prescDoctor">Doctor Name</label>
+                    <input type="text" id="prescDoctor" name="doctor_name" placeholder="e.g. Dr. Smith">
+                </div>
+                <div class="modal-footer" style="padding:0;border:none;margin-top:1rem">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('prescriptionModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">📤 Upload</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Reminder Popup -->
+    <div class="reminder-popup" id="reminderPopup">
+        <h3>⏰ Medicine Reminder!</h3>
+        <p id="reminderMedName" style="font-weight:700;font-size:1.1rem;color:var(--primary)"></p>
+        <p id="reminderMedDosage" style="font-size:.85rem"></p>
+        <p style="margin-top:.5rem;font-size:.85rem;color:var(--text-light)">Time to take your medicine.</p>
+        <div class="reminder-actions">
+            <button class="btn btn-success btn-sm" onclick="handleReminderTake()">✅ Taken</button>
+            <button class="btn btn-sm btn-secondary" onclick="handleReminderSkip()">⏭️ Skip</button>
+            <button class="btn btn-sm btn-secondary" onclick="dismissReminder()">✕ Dismiss</button>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

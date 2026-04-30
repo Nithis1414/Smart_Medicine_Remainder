@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pharmacy Finder - MedRemind</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">💊</div>
+                <div><h2>MedRemind</h2><p>Healthcare Assistant</p></div>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-section">Main</div>
+                <a href="{{ url_for('dashboard') }}"><span class="nav-icon">📊</span> Dashboard</a>
+                <div class="nav-section">Tools</div>
+                <a href="{{ url_for('chatbot') }}"><span class="nav-icon">🤖</span> AI Chatbot</a>
+                <a href="{{ url_for('pharmacy') }}" class="active"><span class="nav-icon">🗺️</span> Pharmacy Finder</a>
+                <div class="nav-section">Account</div>
+                <a href="{{ url_for('profile') }}"><span class="nav-icon">👤</span> Profile</a>
+                <a href="{{ url_for('logout') }}"><span class="nav-icon">🚪</span> Logout</a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="avatar">{{ session.get('full_name', 'U')[0]|upper }}</div>
+                    <div><div class="user-name">{{ session.get('full_name', 'User') }}</div><div class="user-role">Patient</div></div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="topbar">
+                <div class="flex items-center gap-2">
+                    <button class="mobile-toggle" onclick="toggleSidebar()">☰</button>
+                    <h1>🗺️ Nearby Pharmacy Finder</h1>
+                </div>
+                <div class="topbar-actions">
+                    <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">🌙</button>
+                </div>
+            </div>
+
+            <div class="page-content">
+                <div class="pharmacy-controls">
+                    <div class="search-bar" style="margin:0;flex:1">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" id="pharmacySearch" placeholder="Search by city or area..." onkeypress="if(event.key==='Enter')searchPharmacyByArea()" style="padding-left:2.5rem">
+                    </div>
+                    <button class="btn btn-primary" onclick="searchPharmacyByArea()">🔍 Search Area</button>
+                    <button class="btn btn-secondary" onclick="locateUser()">📍 My Location</button>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 340px;gap:1.25rem">
+                    <div class="map-container">
+                        <div id="pharmacy-map"></div>
+                    </div>
+                    <div class="card" style="max-height:calc(100vh - 200px);overflow-y:auto">
+                        <div class="card-header">
+                            <h2>🏥 Nearby Pharmacies</h2>
+                        </div>
+                        <div id="pharmacyList" style="padding:0">
+                            <div style="padding:2rem;text-align:center;color:var(--text-light)">
+                                <p style="font-size:2rem;margin-bottom:.5rem">📍</p>
+                                <p>Allow location access or search an area to find pharmacies.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
