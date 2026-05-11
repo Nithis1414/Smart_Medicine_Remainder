@@ -45,11 +45,17 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="password">Password</label>
-                        <input type="password" id="password" name="password" placeholder="Min 6 characters" required minlength="6">
+                        <div style="position:relative">
+                            <input type="password" id="password" name="password" placeholder="Min 6 characters" required minlength="6" style="padding-right:2.5rem;width:100%;box-sizing:border-box;">
+                            <span onclick="togglePassword('password', this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;user-select:none;">👁️</span>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="confirm_password">Confirm Password</label>
-                        <input type="password" id="confirm_password" name="confirm_password" placeholder="Confirm password" required>
+                        <div style="position:relative">
+                            <input type="password" id="confirm_password" name="confirm_password" placeholder="Confirm password" required style="padding-right:2.5rem;width:100%;box-sizing:border-box;">
+                            <span onclick="togglePassword('confirm_password', this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;user-select:none;">👁️</span>
+                        </div>
                     </div>
                 </div>
                 <button type="submit" class="btn btn-primary btn-block" style="padding:1rem;font-size:1rem;margin-top:.5rem">

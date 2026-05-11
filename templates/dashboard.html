@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - MedRemind</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 </head>
 <body>
     <div class="app-layout">
@@ -21,8 +22,8 @@
                 <div class="nav-section">Main</div>
                 <a href="{{ url_for('dashboard') }}" class="active"><span class="nav-icon">📊</span> Dashboard</a>
                 <div class="nav-section">Manage</div>
-                <a href="#medicines" onclick="document.getElementById('medicinesSection').scrollIntoView({behavior:'smooth'})"><span class="nav-icon">💊</span> Medicines</a>
-                <a href="#prescriptions" onclick="document.getElementById('prescriptionsSection').scrollIntoView({behavior:'smooth'})"><span class="nav-icon">📋</span> Prescriptions</a>
+                <a href="#medicinesSection" onclick="document.getElementById('medicinesSection').scrollIntoView({behavior:'smooth'})"><span class="nav-icon">💊</span> Medicines</a>
+                <a href="#prescriptionsSection" onclick="document.getElementById('prescriptionsSection').scrollIntoView({behavior:'smooth'})"><span class="nav-icon">📋</span> Prescriptions</a>
                 <div class="nav-section">Tools</div>
                 <a href="{{ url_for('chatbot') }}"><span class="nav-icon">🤖</span> AI Chatbot</a>
                 <a href="{{ url_for('pharmacy') }}"><span class="nav-icon">🗺️</span> Pharmacy Finder</a>
@@ -32,7 +33,7 @@
             </nav>
             <div class="sidebar-footer">
                 <div class="user-info">
-                    <div class="avatar">{{ session.get('full_name', 'U')[0]|upper }}</div>
+                    <div class="avatar">{{ (session.get('full_name') or session.get('username', 'U'))[0]|upper }}</div>
                     <div>
                         <div class="user-name">{{ session.get('full_name', 'User') }}</div>
                         <div class="user-role">Patient</div>
@@ -105,7 +106,7 @@
                                 </div>
                             </div>
                             <div class="med-time">
-                                <div class="time">{{ med.reminder_time }}</div>
+                                <div class="time">{{ med.reminder_time | time12 }}</div>
                                 <div class="freq">{{ med.frequency }}</div>
                             </div>
                             <div class="med-actions">
@@ -147,7 +148,7 @@
                                 </div>
                             </div>
                             <div class="med-time">
-                                <div class="time">{{ med.reminder_time }}</div>
+                                <div class="time">{{ med.reminder_time | time12 }}</div>
                                 <div class="freq">Taken {{ med.completed_count }} times</div>
                             </div>
                             <div class="med-actions">
@@ -236,7 +237,7 @@
                 </div>
                 <div class="form-group">
                     <label for="medTime">Reminder Time *</label>
-                    <input type="time" id="medTime" required>
+                    <input type="text" id="medTime" required placeholder="Select time...">
                 </div>
                 <div class="form-row">
                     <div class="form-group">
@@ -301,6 +302,17 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script>
+        window.medTimePicker = flatpickr("#medTime", {
+            enableTime: true,
+            noCalendar: true,
+            dateFormat: "H:i",
+            time_24hr: false,
+            altInput: true,
+            altFormat: "h:i K"
+        });
+    </script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>

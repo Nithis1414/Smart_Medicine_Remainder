@@ -54,6 +54,7 @@ function openAddMedicineModal() {
     document.getElementById('medicineModalTitle').textContent = 'Add Medicine';
     document.getElementById('medicineForm').reset();
     document.getElementById('medicineId').value = '';
+    if (window.medTimePicker) window.medTimePicker.clear();
     document.getElementById('medicineModal').classList.add('active');
 }
 
@@ -68,7 +69,11 @@ function openEditMedicineModal(id) {
             document.getElementById('medName').value = med.name;
             document.getElementById('medDosage').value = med.dosage;
             document.getElementById('medFrequency').value = med.frequency;
-            document.getElementById('medTime').value = med.reminder_time;
+            if (window.medTimePicker) {
+                window.medTimePicker.setDate(med.reminder_time);
+            } else {
+                document.getElementById('medTime').value = med.reminder_time;
+            }
             document.getElementById('medStartDate').value = med.start_date;
             document.getElementById('medEndDate').value = med.end_date || '';
             document.getElementById('medNotes').value = med.notes || '';
@@ -200,9 +205,55 @@ function speakReminder(medicineName) {
 }
 
 // ──────────────────────────────────────────────
+// Password Toggle
+// ──────────────────────────────────────────────
+function togglePassword(inputId, iconElement) {
+    const input = document.getElementById(inputId);
+    if (input.type === 'password') {
+        input.type = 'text';
+        iconElement.textContent = '🙈';
+    } else {
+        input.type = 'password';
+        iconElement.textContent = '👁️';
+    }
+}
+
+// ──────────────────────────────────────────────
 // Reminder System
 // ──────────────────────────────────────────────
 let reminderInterval = null;
+
+function getReminderTimes(startTimeStr, frequency) {
+    if (!startTimeStr) return [];
+    if (frequency === 'As needed') return [];
+    
+    let times = [startTimeStr];
+    let parts = startTimeStr.split(':');
+    if (parts.length !== 2) return times;
+    
+    let h = parseInt(parts[0], 10);
+    let m = parseInt(parts[1], 10);
+    
+    const addHours = (hours) => {
+        let newH = (h + hours) % 24;
+        return `${newH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+    };
+
+    if (frequency === 'Twice daily') {
+        times.push(addHours(12));
+    } else if (frequency === 'Three times daily') {
+        times.push(addHours(8));
+        times.push(addHours(16));
+    } else if (frequency === 'Every 4 hours') {
+        for(let i=4; i<24; i+=4) times.push(addHours(i));
+    } else if (frequency === 'Every 6 hours') {
+        for(let i=6; i<24; i+=6) times.push(addHours(i));
+    } else if (frequency === 'Every 8 hours') {
+        for(let i=8; i<24; i+=8) times.push(addHours(i));
+    }
+    
+    return times;
+}
 
 function startReminderSystem() {
     // Check every 30 seconds
@@ -222,7 +273,9 @@ function checkReminders() {
                 if (!med.is_active) return;
                 if (med.start_date > today) return;
                 if (med.end_date && med.end_date < today) return;
-                if (med.reminder_time === currentTime) {
+                
+                const times = getReminderTimes(med.reminder_time, med.frequency);
+                if (times.includes(currentTime)) {
                     showReminderPopup(med);
                 }
             });
@@ -333,16 +386,36 @@ function sendChatMessage() {
     fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({ message })
     })
-    .then(r => r.json())
+    .then(async r => {
+        if (!r.ok) {
+            if (r.status === 401) {
+                showSessionExpiredBanner('Your session has expired. Redirecting to login...');
+                setTimeout(() => { window.location.href = '/login'; }, 3000);
+                throw new Error('Session expired. Redirecting to login.');
+            }
+
+            const text = await r.text();
+            try {
+                const err = JSON.parse(text);
+                throw new Error(err.error || err.response || 'Server error');
+            } catch {
+                throw new Error(text || 'Server error. Please try again.');
+            }
+        }
+        return r.json();
+    })
     .then(data => {
         hideTypingIndicator();
         appendChatBubble(data.response || 'Sorry, I could not process that.', 'bot');
     })
-    .catch(() => {
+    .catch(err => {
+        console.error('Chat Error:', err);
         hideTypingIndicator();
-        appendChatBubble('Connection error. Please try again.', 'bot');
+        const msg = err.message.includes('disclaimer') ? 'Unable to connect to AI service' : err.message;
+        appendChatBubble(`Error: ${msg}`, 'bot');
     });
 }
 
@@ -370,6 +443,13 @@ function showTypingIndicator() {
 
 function hideTypingIndicator() {
     document.getElementById('typingIndicator')?.remove();
+}
+
+function showSessionExpiredBanner(message) {
+    const banner = document.getElementById('sessionExpiredBanner');
+    if (!banner) return;
+    banner.textContent = `⚠️ ${message}`;
+    banner.style.display = 'block';
 }
 
 // ──────────────────────────────────────────────
@@ -406,24 +486,59 @@ function locateUser() {
         showToast('Geolocation is not supported.', 'warning');
         return;
     }
+    
+    showToast('Finding your location...', 'info');
+    
     navigator.geolocation.getCurrentPosition(
         pos => {
-            const { latitude, longitude } = pos.coords;
+            const { latitude, longitude, accuracy } = pos.coords;
+            
+            // Clear existing markers except user
+            if (pharmacyMap) {
+                pharmacyMap.eachLayer(layer => {
+                    if (layer instanceof L.Marker || layer instanceof L.Circle) {
+                        pharmacyMap.removeLayer(layer);
+                    }
+                });
+            }
+
             pharmacyMap.setView([latitude, longitude], 14);
+            
+            // User marker
             L.marker([latitude, longitude])
                 .addTo(pharmacyMap)
-                .bindPopup('<b>📍 You are here</b>')
+                .bindPopup(`<b>📍 You are here</b><br><small>Accuracy: ${Math.round(accuracy)}m</small>`)
                 .openPopup();
+            
+            // Draw search radius (5km)
+            L.circle([latitude, longitude], {
+                radius: 5000,
+                color: 'var(--primary)',
+                fillColor: 'var(--primary)',
+                fillOpacity: 0.1,
+                weight: 1
+            }).addTo(pharmacyMap);
+
             searchNearbyPharmacies(latitude, longitude);
         },
-        () => {
-            showToast('Location access denied. Showing default location.', 'warning');
-            searchNearbyPharmacies(20.5937, 78.9629); // Search for default location
-        }
+        err => {
+            console.error('Geolocation error:', err);
+            let msg = 'Location access denied.';
+            if (err.code === 1) msg = 'Location permission denied.';
+            else if (err.code === 2) msg = 'Location unavailable.';
+            else if (err.code === 3) msg = 'Location timeout.';
+            
+            showToast(`${msg} Showing default location.`, 'warning');
+            searchNearbyPharmacies(20.5937, 78.9629); 
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
 }
 
 function searchNearbyPharmacies(lat, lon) {
+    const list = document.getElementById('pharmacyList');
+    if (list) list.innerHTML = '<div style="padding:2rem;text-align:center"><div class="typing-indicator" style="display:inline-flex"><span></span><span></span><span></span></div><p>Searching pharmacies...</p></div>';
+
     const query = `[out:json];(node["amenity"="pharmacy"](around:5000,${lat},${lon});node["shop"="chemist"](around:5000,${lat},${lon}););out body;`;
     const overpassUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
 
@@ -436,42 +551,70 @@ function searchNearbyPharmacies(lat, lon) {
                 iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
             });
 
-            const list = document.getElementById('pharmacyList');
             if (list) list.innerHTML = '';
 
             if (data.elements.length === 0) {
-                if (list) list.innerHTML = '<p style="padding:1rem;color:var(--text-light)">No pharmacies found nearby.</p>';
+                if (list) list.innerHTML = '<p style="padding:2rem;text-align:center;color:var(--text-light)">No pharmacies found within 5km.</p>';
                 return;
             }
 
-            data.elements.forEach(el => {
+            // Calculate distance for sorting
+            const results = data.elements.map(el => {
+                const dist = calculateDistance(lat, lon, el.lat, el.lon);
+                return { ...el, distance: dist };
+            }).sort((a, b) => a.distance - b.distance);
+
+            results.forEach(el => {
                 const name = el.tags?.name || 'Pharmacy';
-                const addr = el.tags?.['addr:street'] || '';
+                const addr = el.tags?.['addr:street'] || el.tags?.['addr:full'] || 'Address not available';
                 const phone = el.tags?.phone || '';
+                const distStr = el.distance < 1 ? `${(el.distance * 1000).toFixed(0)}m` : `${el.distance.toFixed(1)}km`;
 
                 L.marker([el.lat, el.lon], { icon: pharmacyIcon })
                     .addTo(pharmacyMap)
-                    .bindPopup(`<b>🏥 ${name}</b><br>${addr}<br>${phone}`);
+                    .bindPopup(`<b>🏥 ${name}</b><br>${addr}<br>${phone ? '📞 '+phone : ''}<br><b>📏 ${distStr} away</b>`);
 
                 if (list) {
                     const item = document.createElement('div');
                     item.className = 'medicine-item';
+                    item.style.cursor = 'pointer';
+                    item.onclick = () => {
+                        pharmacyMap.setView([el.lat, el.lon], 16);
+                        L.popup()
+                            .setLatLng([el.lat, el.lon])
+                            .setContent(`<b>🏥 ${name}</b><br>${distStr} away`)
+                            .openOn(pharmacyMap);
+                    };
                     item.innerHTML = `
                         <div class="med-info">
                             <div class="med-icon" style="background:rgba(16,185,129,.1);color:var(--success)">🏥</div>
                             <div>
                                 <div class="med-name">${name}</div>
-                                <div class="med-detail">${addr || 'Address not available'}</div>
+                                <div class="med-detail">${distStr} • ${addr}</div>
                             </div>
                         </div>
-                        <button class="btn btn-sm btn-secondary" onclick="getDirections(${el.lat},${el.lon})">📍 Directions</button>
+                        <button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();getDirections(${el.lat},${el.lon})">📍 Directions</button>
                     `;
                     list.appendChild(item);
                 }
             });
             showToast(`Found ${data.elements.length} pharmacies nearby.`, 'success');
         })
-        .catch(() => showToast('Could not load pharmacies.', 'error'));
+        .catch(() => {
+            if (list) list.innerHTML = '<p style="padding:2rem;text-align:center;color:var(--danger)">Error loading pharmacies. Please try again.</p>';
+            showToast('Could not load pharmacies.', 'error');
+        });
+}
+
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Radius of earth in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
 }
 
 function searchPharmacyByArea() {

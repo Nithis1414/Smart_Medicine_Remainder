@@ -8,7 +8,7 @@ A full-stack healthcare assistant web application built with Flask, SQLite, and 
 - 💊 Medicine Management (CRUD with reminders)
 - ⏰ Voice-enabled reminders (SpeechSynthesis API)
 - 📋 Prescription upload and tracking
-- 🤖 AI Healthcare Chatbot (Groq API + Llama 3)
+- 🤖 AI Healthcare Chatbot (Groq API + Llama 3.3 70B)
 - 🗺️ Nearby Pharmacy Finder (OpenStreetMap + Leaflet.js)
 - 🌙 Dark/Light mode toggle
 - 📱 Fully responsive design
@@ -33,12 +33,12 @@ A full-stack healthcare assistant web application built with Flask, SQLite, and 
    ```
 
 4. **Open in browser:**
-   Navigate to `http://localhost:5000`
+   Navigate to `http://localhost:5002`
 
 ## Tech Stack
 - **Backend:** Flask (Python)
 - **Database:** SQLite
 - **Frontend:** HTML, CSS, JavaScript
-- **AI:** Groq API (Llama 3)
+- **AI:** Groq API (Llama 3.3 70B Versatile)
 - **Maps:** OpenStreetMap + Leaflet.js
 - **Voice:** Web SpeechSynthesis API

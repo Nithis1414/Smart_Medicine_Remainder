@@ -30,7 +30,10 @@
                 </div>
                 <div class="form-group">
                     <label for="password">Password</label>
-                    <input type="password" id="password" name="password" placeholder="Enter password" required>
+                    <div style="position:relative">
+                        <input type="password" id="password" name="password" placeholder="Enter password" required style="padding-right:2.5rem;width:100%;box-sizing:border-box;">
+                        <span onclick="togglePassword('password', this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;user-select:none;">👁️</span>
+                    </div>
                 </div>
                 <button type="submit" class="btn btn-primary btn-block" style="padding:1rem;font-size:1rem;margin-top:.5rem">
                     🔐 Log In

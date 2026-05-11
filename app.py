@@ -17,6 +17,7 @@ from flask import (
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
+from groq import Groq
 
 # Load environment variables
 load_dotenv()
@@ -26,11 +27,25 @@ app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-prod')
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload
 
+def time12_filter(s):
+    try:
+        from datetime import datetime
+        return datetime.strptime(s, '%H:%M').strftime('%I:%M %p')
+    except:
+        return s
+
+app.jinja_env.filters['time12'] = time12_filter
+
+
 # Allowed file extensions for prescriptions
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf'}
 
 # Ensure upload directory exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# Initialize Groq Client
+groq_api_key = os.getenv('GROQ_API_KEY')
+client = Groq(api_key=groq_api_key) if groq_api_key else None
 
 # ──────────────────────────────────────────────
 # Database Initialization
@@ -128,6 +143,10 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
+            if request.path.startswith('/api/'):
+                return jsonify({
+                    'error': 'Authentication required. Please log in again.'
+                }), 401
             flash('Please log in to access this page.', 'warning')
             return redirect(url_for('login'))
         return f(*args, **kwargs)
@@ -262,6 +281,40 @@ def dashboard():
         (user_id, today, today)
     ).fetchall()
 
+    # Expand today's reminders based on frequency
+    def expand_times(med):
+        times = [med['reminder_time']]
+        try:
+            t = datetime.strptime(med['reminder_time'], '%H:%M')
+            def add_hours(hours):
+                return (t + timedelta(hours=hours)).strftime('%H:%M')
+                
+            freq = med['frequency']
+            if freq == 'Twice daily':
+                times.append(add_hours(12))
+            elif freq == 'Three times daily':
+                times.append(add_hours(8))
+                times.append(add_hours(16))
+            elif freq == 'Every 4 hours':
+                times.extend(add_hours(i) for i in range(4, 24, 4))
+            elif freq == 'Every 6 hours':
+                times.extend(add_hours(i) for i in range(6, 24, 6))
+            elif freq == 'Every 8 hours':
+                times.extend(add_hours(i) for i in range(8, 24, 8))
+        except Exception:
+            pass
+        return times
+
+    expanded_today = []
+    for med in today_medicines:
+        for time_str in expand_times(med):
+            med_dict = dict(med)
+            med_dict['reminder_time'] = time_str
+            expanded_today.append(med_dict)
+            
+    # Sort by time
+    expanded_today.sort(key=lambda x: x['reminder_time'])
+
     # Get stats
     total_medicines = conn.execute(
         'SELECT COUNT(*) as count FROM medicines WHERE user_id = ?',
@@ -300,7 +353,7 @@ def dashboard():
 
     return render_template('dashboard.html',
                            medicines=medicines,
-                           today_medicines=today_medicines,
+                           today_medicines=expanded_today,
                            prescriptions=prescriptions,
                            stats=stats)
 
@@ -598,51 +651,71 @@ def chatbot():
 @app.route('/api/chat', methods=['POST'])
 @login_required
 def chat():
-    """Handle chatbot messages using Groq API."""
+    """Handle chatbot messages using Groq API with automatic model fallback."""
     data = request.get_json()
     user_message = data.get('message', '').strip()
 
     if not user_message:
         return jsonify({'error': 'Message cannot be empty.'}), 400
 
-    groq_api_key = os.getenv('GROQ_API_KEY')
-    if not groq_api_key or groq_api_key == 'your-groq-api-key-here':
+    if not client:
         return jsonify({
             'response': "I'm sorry, the AI chatbot is not configured yet. Please add your Groq API key to the .env file.",
             'disclaimer': True
         })
 
-    try:
-        from groq import Groq
-        client = Groq(api_key=groq_api_key)
+    system_prompt = """You are a helpful healthcare assistant chatbot. You provide general health information 
+    and guidance about medicines, symptoms, and wellness. You are NOT a replacement for professional medical advice.
+    Always remind users to consult a healthcare professional for serious concerns.
+    Keep your responses concise, helpful, and easy to understand.
+    If asked about specific dosages or treatments, always recommend consulting a doctor."""
 
-        system_prompt = """You are a helpful healthcare assistant chatbot. You provide general health information 
-        and guidance about medicines, symptoms, and wellness. You are NOT a replacement for professional medical advice.
-        Always remind users to consult a healthcare professional for serious concerns.
-        Keep your responses concise, helpful, and easy to understand.
-        If asked about specific dosages or treatments, always recommend consulting a doctor."""
+    # Models in priority order — if the first is decommissioned, try the next
+    models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
+    last_error = None
 
-        chat_completion = client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message}
-            ],
-            model="llama-3.3-70b-versatile",
-            temperature=0.7,
-            max_tokens=1024
-        )
+    for model_name in models:
+        try:
+            chat_completion = client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message}
+                ],
+                model=model_name,
+                temperature=0.7,
+                max_tokens=1024
+            )
 
-        response = chat_completion.choices[0].message.content
-        return jsonify({
-            'response': response,
-            'disclaimer': True
-        })
+            response = chat_completion.choices[0].message.content
+            return jsonify({
+                'response': response,
+                'disclaimer': True
+            })
 
-    except Exception as e:
-        return jsonify({
-            'response': f"I'm sorry, I encountered an error. Please try again later.",
-            'disclaimer': True
-        }), 500
+        except Exception as e:
+            last_error = e
+            error_str = str(e).lower()
+            # If the model is decommissioned/not found, try the next one
+            if "decommissioned" in error_str or "not found" in error_str or "does not exist" in error_str:
+                app.logger.warning(f"Model {model_name} unavailable, trying next fallback...")
+                continue
+            # For other errors (network, rate limit, etc.), stop trying
+            break
+
+    # All models failed — return a user-friendly error
+    app.logger.error(f"Chat API error (all models failed): {str(last_error)}")
+    friendly_error = "Unable to connect to AI service. Please check your internet connection and try again."
+    if last_error:
+        err_text = str(last_error).lower()
+        if "rate_limit" in err_text:
+            friendly_error = "AI service is busy (rate limit exceeded). Please wait a moment and try again."
+        elif "api_key" in err_text or "authentication" in err_text:
+            friendly_error = "AI configuration error. The API key may be invalid or expired."
+
+    return jsonify({
+        'response': friendly_error,
+        'disclaimer': True
+    }), 500
 
 
 # ──────────────────────────────────────────────
@@ -710,4 +783,4 @@ def profile():
 # ──────────────────────────────────────────────
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5002, use_reloader=False)
