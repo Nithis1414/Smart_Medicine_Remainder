@@ -25,6 +25,7 @@ A full-stack healthcare assistant web application built with Flask, SQLite, and 
    ```
    SECRET_KEY=your-secret-key
    GROQ_API_KEY=your-groq-api-key
+   GEOAPIFY_API_KEY=your-geoapify-api-key
    ```
 
 3. **Run the application:**
