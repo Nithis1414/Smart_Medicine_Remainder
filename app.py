@@ -18,6 +18,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from groq import Groq
+import urllib.request
+import urllib.parse
 
 # Load environment variables
 load_dotenv()
@@ -654,6 +656,7 @@ def chat():
     """Handle chatbot messages using Groq API with automatic model fallback."""
     data = request.get_json()
     user_message = data.get('message', '').strip()
+    history = data.get('history', [])
 
     if not user_message:
         return jsonify({'error': 'Message cannot be empty.'}), 400
@@ -665,10 +668,23 @@ def chat():
         })
 
     system_prompt = """You are a helpful healthcare assistant chatbot. You provide general health information 
-    and guidance about medicines, symptoms, and wellness. You are NOT a replacement for professional medical advice.
+    and guidance about medicines, symptoms, and wellness. 
+    IMPORTANT: You must NOT mislead the user. You are NOT a replacement for professional medical advice.
     Always remind users to consult a healthcare professional for serious concerns.
     Keep your responses concise, helpful, and easy to understand.
+    When a user asks for remedies or medicines for a specific symptom, provide symptom-specific options (e.g., lozenges or throat sprays for throat pain, not just general pain relievers). 
+    Explain *why* a particular medicine helps that specific symptom. Avoid repeating the exact same generic advice for different symptoms.
     If asked about specific dosages or treatments, always recommend consulting a doctor."""
+
+    messages = [{"role": "system", "content": system_prompt}]
+    
+    # Append conversation history for context
+    for msg in history:
+        if msg.get('role') in ['user', 'assistant']:
+            messages.append({"role": msg['role'], "content": msg.get('content', '')})
+            
+    # Append the current user message
+    messages.append({"role": "user", "content": user_message})
 
     # Models in priority order — if the first is decommissioned, try the next
     models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
@@ -677,10 +693,7 @@ def chat():
     for model_name in models:
         try:
             chat_completion = client.chat.completions.create(
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_message}
-                ],
+                messages=messages,
                 model=model_name,
                 temperature=0.7,
                 max_tokens=1024
@@ -727,6 +740,34 @@ def chat():
 def pharmacy():
     """Nearby pharmacy finder page."""
     return render_template('pharmacy.html')
+
+
+@app.route('/api/pharmacies')
+@login_required
+def api_pharmacies():
+    """Secure proxy for the Geoapify API."""
+    lat = request.args.get('lat')
+    lon = request.args.get('lon')
+    
+    if not lat or not lon:
+        return jsonify({'error': 'Missing coordinates.'}), 400
+        
+    api_key = os.getenv('GEOAPIFY_API_KEY')
+    if not api_key:
+        return jsonify({'error': 'Pharmacy API key not configured.'}), 500
+        
+    # Build Geoapify Places API URL
+    categories = "healthcare.pharmacy,commercial.health_and_beauty.pharmacy"
+    url = f"https://api.geoapify.com/v2/places?categories={categories}&filter=circle:{lon},{lat},5000&bias=proximity:{lon},{lat}&limit=20&apiKey={api_key}"
+    
+    try:
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=10) as response:
+            data = json.loads(response.read().decode())
+            return jsonify(data)
+    except Exception as e:
+        app.logger.error(f"Pharmacy proxy error: {e}")
+        return jsonify({'error': 'Failed to fetch pharmacies.'}), 500
 
 
 # ──────────────────────────────────────────────

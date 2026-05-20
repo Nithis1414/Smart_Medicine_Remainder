@@ -366,6 +366,8 @@ function showToast(message, type = 'info') {
 // ──────────────────────────────────────────────
 // Chatbot
 // ──────────────────────────────────────────────
+let chatHistory = [];
+
 function initChatbot() {
     const input = document.getElementById('chatInput');
     if (!input) return;
@@ -387,7 +389,7 @@ function sendChatMessage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ message })
+        body: JSON.stringify({ message: message, history: chatHistory })
     })
     .then(async r => {
         if (!r.ok) {
@@ -409,7 +411,15 @@ function sendChatMessage() {
     })
     .then(data => {
         hideTypingIndicator();
-        appendChatBubble(data.response || 'Sorry, I could not process that.', 'bot');
+        const botResponse = data.response || 'Sorry, I could not process that.';
+        appendChatBubble(botResponse, 'bot');
+        
+        // Add to history for context
+        chatHistory.push({ role: 'user', content: message });
+        chatHistory.push({ role: 'assistant', content: botResponse });
+        
+        // Keep history manageable (last 10 turns max)
+        if (chatHistory.length > 20) chatHistory = chatHistory.slice(chatHistory.length - 20);
     })
     .catch(err => {
         console.error('Chat Error:', err);
@@ -539,10 +549,7 @@ function searchNearbyPharmacies(lat, lon) {
     const list = document.getElementById('pharmacyList');
     if (list) list.innerHTML = '<div style="padding:2rem;text-align:center"><div class="typing-indicator" style="display:inline-flex"><span></span><span></span><span></span></div><p>Searching pharmacies...</p></div>';
 
-    const query = `[out:json];(node["amenity"="pharmacy"](around:5000,${lat},${lon});node["shop"="chemist"](around:5000,${lat},${lon}););out body;`;
-    const overpassUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
-
-    fetch(overpassUrl)
+    fetch(`/api/pharmacies?lat=${lat}&lon=${lon}`)
         .then(r => r.json())
         .then(data => {
             const pharmacyIcon = L.icon({
@@ -553,24 +560,36 @@ function searchNearbyPharmacies(lat, lon) {
 
             if (list) list.innerHTML = '';
 
-            if (data.elements.length === 0) {
+            if (data.error) {
+                if (list) list.innerHTML = `<p style="padding:2rem;text-align:center;color:var(--danger)">${data.error}</p>`;
+                return;
+            }
+
+            if (!data.features || data.features.length === 0) {
                 if (list) list.innerHTML = '<p style="padding:2rem;text-align:center;color:var(--text-light)">No pharmacies found within 5km.</p>';
                 return;
             }
 
-            // Calculate distance for sorting
-            const results = data.elements.map(el => {
-                const dist = calculateDistance(lat, lon, el.lat, el.lon);
-                return { ...el, distance: dist };
-            }).sort((a, b) => a.distance - b.distance);
+            const results = data.features.filter(f => f.properties.name);
 
-            results.forEach(el => {
-                const name = el.tags?.name || 'Pharmacy';
-                const addr = el.tags?.['addr:street'] || el.tags?.['addr:full'] || 'Address not available';
-                const phone = el.tags?.phone || '';
-                const distStr = el.distance < 1 ? `${(el.distance * 1000).toFixed(0)}m` : `${el.distance.toFixed(1)}km`;
+            if (results.length === 0) {
+                if (list) list.innerHTML = '<p style="padding:2rem;text-align:center;color:var(--text-light)">No verified named pharmacies found within 5km.</p>';
+                return;
+            }
 
-                L.marker([el.lat, el.lon], { icon: pharmacyIcon })
+            results.forEach(feature => {
+                const props = feature.properties;
+                const coords = feature.geometry.coordinates;
+                const pLon = coords[0];
+                const pLat = coords[1];
+
+                const name = props.name;
+                const addr = props.formatted || 'Address not available';
+                const phone = (props.contact && props.contact.phone) ? props.contact.phone : '';
+                const distanceMeters = props.distance || 0;
+                const distStr = distanceMeters < 1000 ? `${distanceMeters}m` : `${(distanceMeters / 1000).toFixed(1)}km`;
+
+                L.marker([pLat, pLon], { icon: pharmacyIcon })
                     .addTo(pharmacyMap)
                     .bindPopup(`<b>🏥 ${name}</b><br>${addr}<br>${phone ? '📞 '+phone : ''}<br><b>📏 ${distStr} away</b>`);
 
@@ -579,9 +598,9 @@ function searchNearbyPharmacies(lat, lon) {
                     item.className = 'medicine-item';
                     item.style.cursor = 'pointer';
                     item.onclick = () => {
-                        pharmacyMap.setView([el.lat, el.lon], 16);
+                        pharmacyMap.setView([pLat, pLon], 16);
                         L.popup()
-                            .setLatLng([el.lat, el.lon])
+                            .setLatLng([pLat, pLon])
                             .setContent(`<b>🏥 ${name}</b><br>${distStr} away`)
                             .openOn(pharmacyMap);
                     };
@@ -593,12 +612,12 @@ function searchNearbyPharmacies(lat, lon) {
                                 <div class="med-detail">${distStr} • ${addr}</div>
                             </div>
                         </div>
-                        <button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();getDirections(${el.lat},${el.lon})">📍 Directions</button>
+                        <button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();getDirections(${pLat},${pLon})">📍 Directions</button>
                     `;
                     list.appendChild(item);
                 }
             });
-            showToast(`Found ${data.elements.length} pharmacies nearby.`, 'success');
+            showToast(`Found ${results.length} pharmacies nearby.`, 'success');
         })
         .catch(() => {
             if (list) list.innerHTML = '<p style="padding:2rem;text-align:center;color:var(--danger)">Error loading pharmacies. Please try again.</p>';
