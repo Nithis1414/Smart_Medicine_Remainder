@@ -41,5 +41,5 @@ A full-stack healthcare assistant web application built with Flask, SQLite, and 
 - **Database:** SQLite
 - **Frontend:** HTML, CSS, JavaScript
 - **AI:** Groq API (Llama 3.3 70B Versatile)
-- **Maps:** OpenStreetMap + Leaflet.js
+- **Maps & Location:** OpenStreetMap + Leaflet.js, Geoapify API
 - **Voice:** Web SpeechSynthesis API
